@@ -1,0 +1,59 @@
+  name: Spring Boot Build and Deploy
+
+  on:
+    push:
+      branches:
+        - main
+
+  env:
+    IMAGE_NAME: spring-boot-web-app
+
+  jobs:
+    build-deploy:
+      runs-on: ubuntu-latest
+
+      steps:
+        - name: Checkout Source
+          uses: actions/checkout@v4
+
+        - name: Setup Java
+          uses: actions/setup-java@v4
+          with:
+            java-version: '21'
+            distribution: 'temurin'
+            cache: maven
+
+        - name: Build Spring Boot Application
+          run: mvn clean package -DskipTests
+
+        - name: Login to Docker Hub
+          uses: docker/login-action@v3
+          with:
+            username: ${{ secrets.DOCKER_USERNAME }}
+            password: ${{ secrets.DOCKER_PASSWORD }}
+
+        - name: Build Docker Image
+          run: docker build -t ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest .
+
+        - name: Push Docker Image
+          run: docker push ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+
+        - name: Deploy to EC2
+          uses: appleboy/ssh-action@v1.2.2
+          with:
+            host: ${{ secrets.EC2_HOST }}
+            username: ubuntu
+            key: ${{ secrets.EC2_SSH_KEY }}
+            script: |
+              sudo docker pull ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+              
+              sudo docker stop spring-boot-app || true
+              sudo docker rm spring-boot-app || true
+              
+              sudo docker run -d \
+                --name spring-boot-app \
+                --restart unless-stopped \
+                -p 8080:8080 \
+                ${{ secrets.DOCKER_USERNAME }}/${{ env.IMAGE_NAME }}:latest
+              
+              sudo docker image prune -f
