@@ -11,6 +11,6 @@ public class WelcomeController {
 
     @GetMapping
     public ResponseEntity<String> welcomecontroller(){
-        return ResponseEntity.ok("Welcome to spring boot application");
+        return ResponseEntity.ok("API is UP using ci/cd pipeline");
     }
 }
